@@ -4,7 +4,6 @@ import (
 	"errors"
 	"flag"
 	"fmt"
-	"io"
 	"markdown-parser/types"
 	"os"
 	"sort"
@@ -32,23 +31,16 @@ var decorTags = map[string][]string{
 }
 
 
-func readFile(path string) (*string,error){
-	  file, err := os.Open(path)
+func readFile(path string) (string,error){
+	file, err := os.ReadFile(path)
     if err != nil {
-			return nil, err
+			return "", err
     }
-  b, err := io.ReadAll(file)
-	if err != nil{
-		return nil, err
-	}
 
-	s := string(b);
+	s := string(file);
 
-	if err = file.Close(); err != nil {
-		return nil, err
-	}
 
-	return &s, nil;
+	return s, nil;
 }
 
 var path string;
@@ -162,7 +154,7 @@ func main(){
 		fmt.Println(err.Error())
 	}
 
-	lines := strings.Split(*s, "\n")
+	lines := strings.Split(s, "\n")
 
 	for _, line := range lines {
 		parsedString, err := parse(line, true)
