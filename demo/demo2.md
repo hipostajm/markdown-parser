@@ -17,4 +17,20 @@ paragraf
 ***italic and bold***
 ---italic and bold---
 
+---
+---
+---
+---
+---
+---
+
 `code`
+
+```python
+uwu='uwu'
+hejjj='rawr'
+```
+
+# h1
+### h3
+

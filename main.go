@@ -7,10 +7,21 @@ import (
 	"markdown-parser/types"
 	"os"
 	"sort"
+	"strconv"
 	"strings"
 )
 
+var multilineTags = map[string]string{
+	"```": "code",
+}
+
 var startTags = map[string]string{
+	"---": "hr",
+	"": "br",
+}
+
+
+var startWithTextTags = map[string]string{
 	"#": "h1",
 	"##": "h2",
 	"###": "h3",
@@ -58,40 +69,105 @@ func loadVariables() error{
 	return nil;
 }
 
-func parse(line string, wholeLine bool) (string, error){
+func wrapStartTag(tag string, classes ...string) string{
+	if len(classes) == 0{
+		return "<"+tag+">"
+	} else{
+		htmlTag := "<"+tag+" class=\""
+		for _, class := range classes{
+			htmlTag += class+" "
+		}
+		htmlTag += "\">"
+		return htmlTag
+	}
+}
+func wrapEndTag(tag string) string{
+	return "</"+tag+">"
+}
+func wrapWholeTag(tag string, text string) string{
+	return wrapStartTag(tag)+text+wrapEndTag(tag)
+}
+
+func parse(markdownText string) (string, error){
+	return  parseMultiLineTags(markdownText)	
+}
+
+func parseMultiLineTags(text string) (string, error){
+	lines := strings.Split(text, "\n")
+	stack := types.NewStack[string]()
+
+	parsedText := ""
+
+	for i ,line := range lines{
+		justDidSmth := false
+		for key := range multilineTags{
+			if len(line) >= len(key) && key == line[:len(key)]{
+				topElement := stack.TopElement();
+				if topElement != nil && *topElement == key{
+					parsedText+=wrapEndTag(multilineTags[key])+"\n"
+					justDidSmth = true
+					stack.Pop()
+				}	else{
+					parsedText+=wrapStartTag(multilineTags[key], line[len(key):])+"\n"
+					justDidSmth = true
+					stack.Push(key)
+				}
+				break
+			}
+		}
+		if justDidSmth{
+		}else if stack.TopElement() == nil{
+			s, err := parseForStartTags(line, true);
+			if err != nil{
+				return "", errors.New(strconv.Itoa(i+1)+" line: "+err.Error())
+			} 
+			parsedText += s + "\n"
+		} else{
+			parsedText += line + "<br>"
+		}
+	}
+	
+	return parsedText, nil
+}
+
+func parseForStartTags(line string, wholeLine bool) (string, error){
 
 	words := strings.SplitN(line," ", 2)	
 
-	if(line == ""){
-		return "</br>", nil
-	} else if value, ok := startTags[words[0]]; ok{
-		parsed, err := parse(words[1], false)
-		return "<"+value+">"+parsed+"</"+value+">", err
+	if tag, ok := startTags[line]; ok{
+		return wrapStartTag(tag), nil
+	} else if tag, ok := startWithTextTags[words[0]]; ok{
+		parsed, err := parseForStartTags(words[1], false)
+		if len(words) >= 2{
+			return wrapWholeTag(tag, parsed), err
+		}
+		return "", errors.New("start tag "+tag+" requiers text")
+		
 	} else if wholeLine{
-		parsed, err := parse(line, false)
-		return "<p>"+parsed+"</p>", err
+		parsed, err := parseForStartTags(line, false)
+		return wrapWholeTag("p", parsed), err
 	}
 	// return line, nil
 	return parseForDecor(line)
 }
 
-func valuesToTag(values []string,start bool) string{
-	tags := ""
+func tagListToTagSum(tags []string,start bool) string{
+	tagSum := ""
 
 	if start{
-		for _, element := range values{
-			tags+="<"+element+">"
+		for _, tag := range tags{
+			tagSum+=wrapStartTag(tag)
 		}
 	} else{
-		for i := len(values)-1; i >= 0; i--{
-			tags+="</"+values[i]+">"
+		for i := len(tags)-1; i >= 0; i--{
+			tagSum+=wrapEndTag(tags[i])
 		}
 	}
 	
-	return tags
+	return tagSum
 }
 
-func mapToKeyList(obj map[string][]string) []string{
+func mapToKeyList[T any](obj map[string]T) []string{
 	var keyList []string
 	for key := range decorTags{
 		keyList = append(keyList, key)
@@ -119,11 +195,11 @@ func parseForDecor(text string) (string, error){
 				if(topElement == nil || *topElement != key){
 					stack.Push(key)
 					values := decorTags[key]
-					newText += valuesToTag(values, true)
+					newText += tagListToTagSum(values, true)
 				} else{
 					stack.Pop()
 					values := decorTags[key]
-					newText += valuesToTag(values, false)
+					newText += tagListToTagSum(values, false)
 				}
 				break
 			} 	
@@ -154,17 +230,15 @@ func main(){
 		fmt.Println(err.Error())
 	}
 
-	lines := strings.Split(s, "\n")
 
-	for _, line := range lines {
-		parsedString, err := parse(line, true)
-		if (err != nil){
-			fmt.Println(err.Error())
-			os.Exit(1)
-		}
-		fmt.Println(parsedString)
+	parsed, err := parseMultiLineTags(s)
+
+	if err != nil{
+		fmt.Println(err)
+		os.Exit(1)
+	}else{
+		fmt.Print(parsed)
 	}
-
 }
 
 
